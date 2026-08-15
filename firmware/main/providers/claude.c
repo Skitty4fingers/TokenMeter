@@ -24,7 +24,8 @@ static const char *TAG = "claude";
 #define MANUAL_REDIRECT "https://platform.claude.com/oauth/code/callback"
 #define DEVICE_SCOPES "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"   /* = Claude Code's default list; the authorize page rejects other combos ("Invalid request format") */
 #define CLIENT_ID "9d1c250a-e61b-44d9-88ed-5944d1962f5e"   /* Claude Code's public OAuth client */
-#define UA        "claude-code/2.1.233"
+#define UA        "claude-code/2.1.233"                                   /* usage endpoint REQUIRES this */
+#define TOKEN_UA  "axios/1.7.9"   /* token endpoint 429s a claude-code UA; the real CLI uses axios here */
 #define BODY_CAP  4096
 
 static esp_err_t get_usage(const char *token, provider_usage_t *o);
@@ -40,7 +41,7 @@ static esp_err_t refresh_noSave(app_config_t *cfg, char *err, size_t errlen)
     if (!form) return ESP_ERR_NO_MEM;
     snprintf(form, CFG_TOKEN_LEN + 320, "{\"grant_type\":\"refresh_token\",\"refresh_token\":\"%s\",\"client_id\":\"%s\",\"scope\":\"%s\"}",
              cfg->claude_refresh, CLIENT_ID, cfg->claude_scope[0] ? cfg->claude_scope : DEVICE_SCOPES);
-    const char *hdr[] = { "User-Agent", UA, "Accept", "application/json", NULL };
+    const char *hdr[] = { "User-Agent", TOKEN_UA, "Accept", "application/json", NULL };
     char *body = malloc(BODY_CAP);
     if (!body) { free(form); return ESP_ERR_NO_MEM; }
     http_resp_t r = { .buf = body, .cap = BODY_CAP };
@@ -134,7 +135,7 @@ esp_err_t claude_oauth_finish(const char *pasted, provider_usage_t *out)
     if (!form || !body) { free(form); free(body); return ESP_ERR_NO_MEM; }
     snprintf(form, 640, "{\"grant_type\":\"authorization_code\",\"code\":\"%s\",\"redirect_uri\":\"%s\",\"client_id\":\"%s\",\"code_verifier\":\"%s\",\"state\":\"%s\"}",
              code, MANUAL_REDIRECT, CLIENT_ID, s_verifier, s_state);
-    const char *hdr[] = { "User-Agent", UA, "Accept", "application/json", NULL };
+    const char *hdr[] = { "User-Agent", TOKEN_UA, "Accept", "application/json", NULL };
     http_resp_t r = { .buf = body, .cap = BODY_CAP };
     esp_err_t e = http_request(TOKEN_URL, HTTP_METHOD_POST, hdr, form, "application/json", &r, 20000, 1024);
     free(form);

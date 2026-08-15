@@ -81,7 +81,7 @@ components/dns_server vendored from the ESP-IDF captive_portal example
 
 - Claude: `GET https://api.anthropic.com/api/oauth/usage` — needs `User-Agent: claude-code/x.y.z`,
   `anthropic-beta: oauth-2025-04-20` and a token with the `user:profile` scope (Claude Code login token;
-  access ~8 h, refresh ~28 d). Refresh: `POST https://platform.claude.com/v1/oauth/token` JSON with `scope`
+  access ~8 h, refresh ~28 d). Refresh + code-exchange: `POST https://platform.claude.com/v1/oauth/token` JSON with `scope` — **send `User-Agent: axios/1.7.9` here, NOT `claude-code/*`** (the token endpoint returns a fake `429 rate_limit_error` to a `claude-code` UA; only the usage endpoint requires it)
   `{grant_type:refresh_token, refresh_token, client_id:9d1c250a-e61b-44d9-88ed-5944d1962f5e}`.
   Poll ≥ 180 s or expect long 429 lockouts. The device holds its **own** OAuth login (authorization-code + PKCE, manual redirect), independent of desktop Claude Code; the token endpoint 429-locks the whole IP if hammered, and each retry resets it — one attempt, then wait. TLS needs the FULL cert bundle + `CROSS_SIGNED_VERIFY`
   (chain tops out at GTS Root R4 cross-signed by GlobalSign R1).
