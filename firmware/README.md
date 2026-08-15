@@ -18,7 +18,7 @@ idf.py -p /dev/ttyACM0 flash monitor   # board enumerates as USB-JTAG/serial
 
 1. LCD shows **SETUP MODE** with a QR + `TokenMeter-XXXX` / password.
 2. Join that hotspot from a phone; the captive portal opens (or browse to `http://192.168.4.1`).
-3. Wizard: WiFi → paste `~/.claude/.credentials.json` (Claude Code's login; **`claude setup-token` does NOT work** — it lacks the `user:profile` scope → 403) → paste `~/.codex/auth.json` → Finish.
+3. Wizard: WiFi → **Sign in with Claude** (device does its own OAuth/PKCE; paste back the `code#state`) → paste `~/.codex/auth.json` → Finish. Fallback: paste `~/.claude/.credentials.json` (**`claude setup-token` does NOT work** — lacks `user:profile` → 403).
    Either provider can be skipped; an unconfigured provider is never drawn on the LCD.
 4. Afterwards the UI lives at `http://tokenmeter.local` (or the IP shown in the web header).
 
@@ -53,7 +53,9 @@ components/dns_server vendored from the ESP-IDF captive_portal example
 | GET/POST | `/api/config` | settings (tokens masked in GET; POST accepts a partial JSON) |
 | GET | `/api/scan` | `[{ssid,rssi,open}]` |
 | POST/DELETE | `/api/wifi` | `{ssid,pass}` → connects; DELETE forgets → provisioning |
-| POST/DELETE | `/api/claude` | `{credjson}` (raw credentials.json) or `{token}` → verifies against Anthropic, saves on success |
+| POST/DELETE | `/api/claude` | fallback: `{credjson}` (raw credentials.json) or `{token}` → verifies, saves |
+| GET | `/api/claude/oauth/start` | → `{url}` device-login authorize URL (PKCE; scope = Claude Code's default set) |
+| POST | `/api/claude/oauth/finish` | `{code}` (`code#state` or callback URL) → exchanges, saves on success |
 | POST/DELETE | `/api/openai` | `{authjson}` (raw auth.json) or `{access,refresh,account}` |
 | POST | `/api/setup/done` | wizard finished → drop the setup hotspot |
 | POST | `/api/reboot`, `/api/reset` | reset = wipe NVS config + reboot |
@@ -79,9 +81,9 @@ components/dns_server vendored from the ESP-IDF captive_portal example
 
 - Claude: `GET https://api.anthropic.com/api/oauth/usage` — needs `User-Agent: claude-code/x.y.z`,
   `anthropic-beta: oauth-2025-04-20` and a token with the `user:profile` scope (Claude Code login token;
-  access ~8 h, refresh ~28 d). Refresh: `POST https://console.anthropic.com/v1/oauth/token` JSON
+  access ~8 h, refresh ~28 d). Refresh: `POST https://platform.claude.com/v1/oauth/token` JSON with `scope`
   `{grant_type:refresh_token, refresh_token, client_id:9d1c250a-e61b-44d9-88ed-5944d1962f5e}`.
-  Poll ≥ 180 s or expect long 429 lockouts. TLS needs the FULL cert bundle + `CROSS_SIGNED_VERIFY`
+  Poll ≥ 180 s or expect long 429 lockouts. The device holds its **own** OAuth login (authorization-code + PKCE, manual redirect), independent of desktop Claude Code; the token endpoint 429-locks the whole IP if hammered, and each retry resets it — one attempt, then wait. TLS needs the FULL cert bundle + `CROSS_SIGNED_VERIFY`
   (chain tops out at GTS Root R4 cross-signed by GlobalSign R1).
 - ChatGPT: `GET https://chatgpt.com/backend-api/wham/usage`; refresh via
   `POST https://auth.openai.com/oauth/token`. Refresh tokens rotate → persisted immediately.

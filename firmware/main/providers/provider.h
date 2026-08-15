@@ -25,6 +25,9 @@ extern const provider_t provider_openai;
 esp_err_t claude_verify_token(const char *token, provider_usage_t *out);
 /* access + refresh (+ expiry epoch, 0 if unknown) e.g. from ~/.claude/.credentials.json; writes into live config on success */
 esp_err_t claude_verify_credentials(const char *access, const char *refresh, int64_t exp, provider_usage_t *out);
+/* device's own login (PKCE, manual redirect): start → authorize URL; finish(pasted "code#state") → tokens in live config */
+esp_err_t claude_oauth_start(char *url, size_t cap);
+esp_err_t claude_oauth_finish(const char *pasted, provider_usage_t *out);
 esp_err_t openai_verify_tokens(const char *access, const char *refresh, const char *account, provider_usage_t *out);
 
 #ifdef __cplusplus

@@ -142,6 +142,53 @@ static void build_provider(prov_w_t *p, provider_id_t id, int nrows, const geo_t
     }
 }
 
+/* Single-window solo provider (e.g. ChatGPT with only a weekly window): a big centered gauge
+   that fills the panel instead of one thin bar. Reuses row_w_t[0] so update_values() drives it. */
+static void build_hero(prov_w_t *p, provider_id_t id, int avail_h)
+{
+    p->id = id; p->nrows = 1;
+    p->cont = lv_obj_create(s_scr_dash);
+    theme_plain(p->cont);
+    lv_obj_set_pos(p->cont, PAD, PAD);
+    lv_obj_set_size(p->cont, W - 2 * PAD, avail_h);
+    int cw = W - 2 * PAD - 4;
+
+    p->name = theme_label(p->cont, FONT_HEAD, id == PROV_CLAUDE ? COL_CLAUDE : COL_GPT, id == PROV_CLAUDE ? "CLAUDE" : "CHATGPT");
+    lv_obj_set_style_text_letter_space(p->name, 1, 0);
+    lv_obj_align(p->name, LV_ALIGN_TOP_LEFT, 2, 2);
+    p->plan = theme_label(p->cont, FONT_LABEL, COL_MUTED, "");
+    lv_obj_align(p->plan, LV_ALIGN_TOP_RIGHT, -2, 4);
+
+    row_w_t *r = &p->rows[0];
+    r->cont = p->cont;   /* hero uses the provider container directly */
+
+    /* big percentage, centered, upper-middle */
+    r->pct = theme_label(p->cont, FONT_PCT_HERO, COL_INK, "");
+    lv_obj_align(r->pct, LV_ALIGN_CENTER, 0, -18);
+
+    /* full-width thick bar under the number */
+    r->bar = lv_bar_create(p->cont);
+    build_bar(r->bar, 22, id == PROV_CLAUDE ? COL_CLAUDE : COL_GPT);
+    lv_obj_set_width(r->bar, cw);
+    lv_obj_align(r->bar, LV_ALIGN_CENTER, 0, 30);
+
+    /* footer: window label (left) + reset countdown (right), just under the bar */
+    r->win = theme_label(p->cont, FONT_LABEL, COL_MUTED, "");
+    lv_obj_align(r->win, LV_ALIGN_CENTER, -(cw / 2) + 6, 54);
+    r->reset = theme_label(p->cont, FONT_LABEL, COL_MUTED, "");
+    lv_obj_set_style_text_align(r->reset, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_align(r->reset, LV_ALIGN_CENTER, (cw / 2) - 6 - 80, 54);
+    lv_obj_set_width(r->reset, 80);
+
+    /* error message (centered) reuses msg */
+    r->msg = theme_label(p->cont, FONT_HEAD, COL_CRIT, "");
+    lv_label_set_long_mode(r->msg, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(r->msg, cw - 8);
+    lv_obj_set_style_text_align(r->msg, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(r->msg, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(r->msg, LV_OBJ_FLAG_HIDDEN);
+}
+
 static void clear_providers(void)
 {
     for (int i = 0; i < s_nprov; i++) if (s_prov[i].cont) { lv_obj_delete(s_prov[i].cont); s_prov[i].cont = NULL; }
@@ -167,14 +214,35 @@ static void rebuild(const app_state_t *st)
     for (int i = 0; i < PROV_COUNT; i++) if (st->prov[i].enabled) enabled++;
     const geo_t *g = enabled == 1 ? &GEO_SOLO : &GEO_DUAL;
     int y = PAD;
-    for (int i = 0; i < PROV_COUNT; i++) {
-        const provider_usage_t *p = &st->prov[i];
-        if (!p->enabled) continue;
-        int rows = p->nwin ? p->nwin : 2;
-        if (enabled == 2 && rows > 2) rows = 2;                 /* dual layout only has room for 5h + wk */
-        if (enabled == 1 && rows > 4) rows = 4;
-        build_provider(&s_prov[s_nprov++], (provider_id_t)i, rows, g, y);
-        y += g->hdr_h + rows * g->row_h + PAD;
+    if (enabled == 1) {
+        int avail = H - 20 - 2 * PAD;                          /* area above the status strip */
+        for (int i = 0; i < PROV_COUNT; i++) {
+            const provider_usage_t *p = &st->prov[i];
+            if (!p->enabled) continue;
+            int rows = p->nwin ? p->nwin : 2;
+            if (rows > 4) rows = 4;
+            if (rows == 1) {
+                build_hero(&s_prov[s_nprov++], (provider_id_t)i, avail);   /* one window: big centered gauge */
+            } else {
+                /* multiple windows: taller rows so the block fills the screen */
+                geo_t gg = GEO_SOLO;
+                gg.row_h = (avail - gg.hdr_h) / rows;
+                if (gg.row_h > 40) gg.row_h = 40;
+                gg.bar_h = gg.row_h / 3; if (gg.bar_h > 14) gg.bar_h = 14; if (gg.bar_h < 8) gg.bar_h = 8;
+                int block = gg.hdr_h + rows * gg.row_h;
+                y = PAD + (avail - block) / 2; if (y < PAD) y = PAD;
+                build_provider(&s_prov[s_nprov++], (provider_id_t)i, rows, &gg, y);
+            }
+        }
+    } else {
+        for (int i = 0; i < PROV_COUNT; i++) {
+            const provider_usage_t *p = &st->prov[i];
+            if (!p->enabled) continue;
+            int rows = p->nwin ? p->nwin : 2;
+            if (rows > 2) rows = 2;                             /* dual layout only has room for 5h + wk */
+            build_provider(&s_prov[s_nprov++], (provider_id_t)i, rows, g, y);
+            y += g->hdr_h + rows * g->row_h + PAD;
+        }
     }
     /* keep status/banner on top */
     lv_obj_move_foreground(s_status);
@@ -236,7 +304,8 @@ static void update_status(const app_state_t *st)
     if (online) {
         lv_obj_remove_flag(s_status, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
-        snprintf(l, sizeof(l), LV_SYMBOL_WIFI " %s", st->ssid);
+        if (st->ip[0]) snprintf(l, sizeof(l), LV_SYMBOL_WIFI " %.14s " BULLET " %s", st->ssid, st->ip);
+        else           snprintf(l, sizeof(l), LV_SYMBOL_WIFI " %s", st->ssid);
         time_t last = 0; int errs = 0;
         for (int i = 0; i < PROV_COUNT; i++) {
             if (!st->prov[i].enabled) continue;

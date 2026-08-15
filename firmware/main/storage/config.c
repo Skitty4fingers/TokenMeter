@@ -28,6 +28,7 @@ void config_defaults(app_config_t *c)
     c->night_brightness = 10;
     c->led_enabled = true;
     c->led_night_off = 1;
+    strlcpy(c->claude_scope, "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload", sizeof(c->claude_scope));
     c->sd_log = false;
     c->rotation = 0;
     strlcpy(c->tz, "UTC0", sizeof(c->tz));
@@ -59,12 +60,14 @@ bool config_load(app_config_t *c)
     if (len < sizeof(*c)) {
         ESP_LOGI(TAG, "migrated config blob %u → %u bytes", (unsigned)len, (unsigned)sizeof(*c));
         if (len <= offsetof(app_config_t, led_night_off)) c->led_night_off = 1;   /* field didn't exist: default on */
+        if (len <= offsetof(app_config_t, claude_scope)) strlcpy(c->claude_scope, "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload", sizeof(c->claude_scope));
     }
     /* clamp a few things so a bad save can't brick the display */
     if (c->brightness > 50) c->brightness = 50;
     if (c->poll_claude_s < 120) c->poll_claude_s = 120;
     if (c->poll_openai_s < 60) c->poll_openai_s = 60;
     if (c->crit_pct <= c->warn_pct) { c->warn_pct = 70; c->crit_pct = 90; }
+    if (!c->claude_scope[0]) strlcpy(c->claude_scope, "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload", sizeof(c->claude_scope));
     return true;
 }
 

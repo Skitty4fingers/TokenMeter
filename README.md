@@ -13,8 +13,10 @@ from your phone through a web UI.
 ## What it does
 
 - **Two providers, four bars** — Claude 5‑hour + weekly, ChatGPT 5‑hour + weekly, each with %, bar and “resets in”.
-- **Only what you configured is drawn.** Skip a provider and the other takes the whole panel (bigger
-  numbers, plus Claude’s per‑model weekly limits such as Opus / Sonnet / Fable).
+- **Only what you configured is drawn.** Skip a provider and the other takes the whole panel — a
+  single window becomes a big centred gauge, and Claude shows its per‑model weekly limits (Opus /
+  Sonnet / Fable) when present.
+- **Device IP on screen** — the bottom status strip shows the Wi‑Fi name, IP, last‑fetch age and clock.
 - **Thresholds** — bar and number turn amber at 70 %, red at 90 % (both adjustable). The onboard
   WS2812 mirrors the worst gauge; it goes dark at night on a schedule you set.
 - **Zero‑config first boot** — the LCD shows a hotspot name, password and a Wi‑Fi QR code; join it and
@@ -70,9 +72,11 @@ idf.py -p /dev/ttyACM0 flash monitor
 1. Power the board. The LCD shows **SETUP MODE** with `TokenMeter‑XXXX`, a password and a QR code.
 2. Join that hotspot from your phone; the portal opens (or browse to `http://192.168.4.1`).
 3. **Wi‑Fi** — pick your 2.4 GHz network, enter the password, *Test & continue*.
-4. **Claude** — paste the contents of `~/.claude/.credentials.json` (macOS: `security find-generic-password -s "Claude Code-credentials" -w`).
-   This is Claude Code’s own login token; it carries the `user:profile` scope the usage endpoint needs.
-   A `claude setup-token` token does **not** work (403).
+4. **Claude** — tap **Open sign-in**, log in with your Claude account, and paste back the `code#state`
+   the page shows. The device gets its *own* OAuth login (independent access + refresh tokens), so
+   refreshing Claude Code on your computer can’t knock it out. *(Fallback: paste
+   `~/.claude/.credentials.json` instead — but that shares your desktop login. A `claude setup-token`
+   token does **not** work — 403.)*
 5. **ChatGPT** — `codex login` once on your computer, then paste `~/.codex/auth.json`. Or *Skip*.
 6. *Finish*. The hotspot turns off and the dashboard appears. From now on the UI lives at `http://tokenmeter.local`.
 
@@ -83,12 +87,17 @@ and either could change — when that happens the affected row shows an error an
 
 | | Endpoint | Auth on the device |
 |---|---|---|
-| Claude | `GET api.anthropic.com/api/oauth/usage` (needs a `claude-code/…` User‑Agent; poll ≥ 180 s) | Claude Code login token (access ~8 h) + refresh token (~28 d); the device refreshes itself |
+| Claude | `GET api.anthropic.com/api/oauth/usage` (needs a `claude-code/…` User‑Agent; poll ≥ 180 s) | The device’s own OAuth login (access ~8 h + refresh); token endpoint `platform.claude.com/v1/oauth/token`; refreshes itself |
 | ChatGPT | `GET chatgpt.com/backend-api/wham/usage` (behind Cloudflare; the C6 passes from a home IP) | Codex CLI tokens; refresh tokens rotate, the device persists the new one immediately |
 
-Because the device and your desktop CLI share a refresh token, one of them may occasionally be
-asked to log in again — if that happens, re‑paste the file in Settings. Tokens are stored in the
-ESP32’s NVS in the clear (this is an MVP; the device sits on your LAN).
+Claude uses its **own** device login, so it’s independent of your desktop Claude Code. ChatGPT still
+shares the Codex `auth.json` refresh token, so occasionally one side may be asked to log in again —
+re‑paste it in Settings if that happens. Tokens are stored in the ESP32’s NVS in the clear (this is
+an MVP; the device sits on your LAN).
+
+> **Rate limits are unforgiving.** The Claude token endpoint (`platform.claude.com/v1/oauth/token`)
+> hands out long IP‑wide 429 lockouts if it’s hit repeatedly — and *every* retry resets the timer.
+> If a sign‑in 429s, wait ~45–60 min without touching it, then try **once**.
 
 ## Repo layout
 

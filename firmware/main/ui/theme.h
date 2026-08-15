@@ -18,7 +18,8 @@
 #define FONT_HEAD    (&lv_font_montserrat_14)
 #define FONT_BODY    (&lv_font_montserrat_14)
 #define FONT_PCT     (&lv_font_montserrat_18)
-#define FONT_PCT_BIG (&lv_font_montserrat_24)
+#define FONT_PCT_BIG  (&lv_font_montserrat_24)
+#define FONT_PCT_HERO (&lv_font_montserrat_48)
 
 #define BULLET "\xE2\x80\xA2"   /* • */
 

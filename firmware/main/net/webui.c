@@ -88,7 +88,7 @@ static cJSON *usage_json(const provider_usage_t *p)
 static esp_err_t h_index(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
     return httpd_resp_send(req, index_html_start, index_html_end - index_html_start - 1);
 }
 
@@ -272,6 +272,38 @@ static esp_err_t h_claude_post(httpd_req_t *req)
     return send_json(req, j, e == ESP_OK ? 200 : 502);
 }
 
+/* GET /api/claude/oauth/start → {"url": "<authorize url>"} */
+static esp_err_t h_claude_oauth_start(httpd_req_t *req)
+{
+    char *url = malloc(768);
+    if (!url) return httpd_resp_send_500(req);
+    esp_err_t e = claude_oauth_start(url, 768);
+    cJSON *j = cJSON_CreateObject();
+    cJSON_AddBoolToObject(j, "ok", e == ESP_OK);
+    if (e == ESP_OK) cJSON_AddStringToObject(j, "url", url); else cJSON_AddStringToObject(j, "error", "could not build URL");
+    free(url);
+    return send_json(req, j, e == ESP_OK ? 200 : 500);
+}
+
+/* POST /api/claude/oauth/finish {"code": "<code#state or callback URL>"} */
+static esp_err_t h_claude_oauth_finish(httpd_req_t *req)
+{
+    char *b = read_body(req, 2048); if (!b) return ESP_OK;
+    cJSON *o = cJSON_Parse(b); free(b);
+    if (!o) return send_err(req, 400, "bad JSON");
+    const char *code = js(o, "code");
+    if (!code || !code[0]) { cJSON_Delete(o); return send_err(req, 400, "missing code"); }
+    provider_usage_t *u = calloc(1, sizeof(*u));
+    if (!u) { cJSON_Delete(o); return httpd_resp_send_500(req); }
+    esp_err_t e = claude_oauth_finish(code, u);
+    cJSON *j = cJSON_CreateObject();
+    cJSON_AddBoolToObject(j, "ok", e == ESP_OK);
+    if (e == ESP_OK) { config_save(config_get()); cJSON_AddItemToObject(j, "usage", usage_json(u)); poller_poke(); }
+    else cJSON_AddStringToObject(j, "error", u->err);
+    free(u); cJSON_Delete(o);
+    return send_json(req, j, e == ESP_OK ? 200 : 502);
+}
+
 static esp_err_t h_claude_delete(httpd_req_t *req)
 {
     app_config_t *c = config_get();
@@ -383,6 +415,8 @@ void webui_start(void)
         { .uri = "/api/wifi",     .method = HTTP_POST,   .handler = h_wifi_post },
         { .uri = "/api/wifi",     .method = HTTP_DELETE, .handler = h_wifi_delete },
         { .uri = "/api/claude",   .method = HTTP_POST,   .handler = h_claude_post },
+        { .uri = "/api/claude/oauth/start",  .method = HTTP_GET,  .handler = h_claude_oauth_start },
+        { .uri = "/api/claude/oauth/finish", .method = HTTP_POST, .handler = h_claude_oauth_finish },
         { .uri = "/api/claude",   .method = HTTP_DELETE, .handler = h_claude_delete },
         { .uri = "/api/openai",   .method = HTTP_POST,   .handler = h_openai_post },
         { .uri = "/api/openai",   .method = HTTP_DELETE, .handler = h_openai_delete },

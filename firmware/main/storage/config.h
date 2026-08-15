@@ -51,6 +51,7 @@ typedef struct {
     char    claude_refresh[CFG_TOKEN_LEN];
     int64_t claude_access_exp;   /* epoch seconds, 0 = unknown */
     uint8_t led_night_off;       /* 0/1/255(unset→default on): LED dark during night hours */
+    char    claude_scope[128];   /* OAuth scopes granted to the device's Claude login (sent on refresh) */
 } app_config_t;
 
 void config_defaults(app_config_t *c);

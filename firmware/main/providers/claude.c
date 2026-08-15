@@ -19,11 +19,15 @@
 
 static const char *TAG = "claude";
 #define USAGE_URL "https://api.anthropic.com/api/oauth/usage"
-#define TOKEN_URL "https://console.anthropic.com/v1/oauth/token"
+#define TOKEN_URL "https://platform.claude.com/v1/oauth/token"      /* moved from console.anthropic.com (2026) */
+#define AUTHZ_URL "https://claude.com/cai/oauth/authorize"
+#define MANUAL_REDIRECT "https://platform.claude.com/oauth/code/callback"
+#define DEVICE_SCOPES "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"   /* = Claude Code's default list; the authorize page rejects other combos ("Invalid request format") */
 #define CLIENT_ID "9d1c250a-e61b-44d9-88ed-5944d1962f5e"   /* Claude Code's public OAuth client */
-#define UA        "claude-code/2.1.0"
+#define UA        "claude-code/2.1.233"
 #define BODY_CAP  4096
 
+static esp_err_t get_usage(const char *token, provider_usage_t *o);
 static bool en(void) { return config_has_claude(config_get()); }
 static uint16_t ivl(void) { return config_get()->poll_claude_s; }
 
@@ -32,9 +36,10 @@ static esp_err_t refresh_noSave(app_config_t *cfg, char *err, size_t errlen)
 {
     if (!cfg->claude_refresh[0]) { snprintf(err, errlen, "token expired · re-paste credentials.json"); return ESP_FAIL; }
     ESP_LOGI(TAG, "refreshing access token");
-    char *form = malloc(CFG_TOKEN_LEN + 160);
+    char *form = malloc(CFG_TOKEN_LEN + 320);
     if (!form) return ESP_ERR_NO_MEM;
-    snprintf(form, CFG_TOKEN_LEN + 160, "{\"grant_type\":\"refresh_token\",\"refresh_token\":\"%s\",\"client_id\":\"%s\"}", cfg->claude_refresh, CLIENT_ID);
+    snprintf(form, CFG_TOKEN_LEN + 320, "{\"grant_type\":\"refresh_token\",\"refresh_token\":\"%s\",\"client_id\":\"%s\",\"scope\":\"%s\"}",
+             cfg->claude_refresh, CLIENT_ID, cfg->claude_scope[0] ? cfg->claude_scope : DEVICE_SCOPES);
     const char *hdr[] = { "User-Agent", UA, "Accept", "application/json", NULL };
     char *body = malloc(BODY_CAP);
     if (!body) { free(form); return ESP_ERR_NO_MEM; }
@@ -43,7 +48,7 @@ static esp_err_t refresh_noSave(app_config_t *cfg, char *err, size_t errlen)
     free(form);
     if (e != ESP_OK) { snprintf(err, errlen, "refresh: %s", esp_err_to_name(e)); free(body); return e; }
     if (r.status != 200) {
-        snprintf(err, errlen, "%d refresh rejected · re-paste credentials.json", r.status);
+        snprintf(err, errlen, "%d refresh rejected · sign in again in web UI", r.status);
         ESP_LOGW(TAG, "refresh %d: %.200s", r.status, body);
         free(body); return ESP_FAIL;
     }
@@ -57,8 +62,112 @@ static esp_err_t refresh_noSave(app_config_t *cfg, char *err, size_t errlen)
     strlcpy(cfg->claude_token, at->valuestring, sizeof(cfg->claude_token));
     if (cJSON_IsString(rt) && rt->valuestring[0]) strlcpy(cfg->claude_refresh, rt->valuestring, sizeof(cfg->claude_refresh));
     cfg->claude_access_exp = cJSON_IsNumber(ei) ? time(NULL) + (int64_t)ei->valuedouble : time(NULL) + 7 * 3600;
+    cJSON *sc = cJSON_GetObjectItem(root, "scope");
+    if (cJSON_IsString(sc) && sc->valuestring[0]) strlcpy(cfg->claude_scope, sc->valuestring, sizeof(cfg->claude_scope));
     cJSON_Delete(root);
     return ESP_OK;
+}
+
+/* ---- device's own login: OAuth authorization-code + PKCE, manual redirect ----
+ * The device generates verifier/state, the user opens the URL, logs in, and pastes back
+ * the "code#state" string that platform.claude.com shows. Tokens are then independent from
+ * the desktop's Claude Code login, so refresh-token rotation cannot break either side. */
+#include "psa/crypto.h"        /* IDF 6 = mbedtls 4 / TF-PSA-Crypto: sha256.h and base64.h are private now */
+#include "esp_random.h"
+
+static char s_verifier[64];
+static char s_state[48];
+static time_t s_pkce_at;
+
+static void b64url(const uint8_t *in, size_t n, char *out, size_t cap)
+{
+    static const char T[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    size_t o = 0;
+    for (size_t i = 0; i < n && o + 4 < cap; i += 3) {
+        uint32_t v = in[i] << 16 | (i + 1 < n ? in[i + 1] << 8 : 0) | (i + 2 < n ? in[i + 2] : 0);
+        out[o++] = T[(v >> 18) & 63]; out[o++] = T[(v >> 12) & 63];
+        if (i + 1 < n) out[o++] = T[(v >> 6) & 63];
+        if (i + 2 < n) out[o++] = T[v & 63];
+    }
+    out[o] = 0;   /* unpadded, URL-safe */
+}
+
+esp_err_t claude_oauth_start(char *url, size_t cap)
+{
+    uint8_t rnd[32];
+    esp_fill_random(rnd, sizeof(rnd)); b64url(rnd, 32, s_verifier, sizeof(s_verifier));   /* 43 chars */
+    esp_fill_random(rnd, 32);          b64url(rnd, 32, s_state, sizeof(s_state));          /* 43 chars, like Claude Code */
+    uint8_t dig[32]; size_t dlen = 0;
+    psa_crypto_init();
+    psa_hash_compute(PSA_ALG_SHA_256, (const uint8_t *)s_verifier, strlen(s_verifier), dig, sizeof(dig), &dlen);
+    char chal[48]; b64url(dig, 32, chal, sizeof(chal));
+    s_pkce_at = time(NULL);
+    /* scope: spaces → %20 ; redirect_uri needs escaping too */
+    int n = snprintf(url, cap,
+        "%s?code=true&client_id=%s&response_type=code"
+        "&redirect_uri=https%%3A%%2F%%2Fplatform.claude.com%%2Foauth%%2Fcode%%2Fcallback"
+        "&scope=org%%3Acreate_api_key+user%%3Aprofile+user%%3Ainference+user%%3Asessions%%3Aclaude_code+user%%3Amcp_servers+user%%3Afile_upload"
+        "&code_challenge=%s&code_challenge_method=S256&state=%s",
+        AUTHZ_URL, CLIENT_ID, chal, s_state);
+    return (n > 0 && (size_t)n < cap) ? ESP_OK : ESP_ERR_NO_MEM;
+}
+
+esp_err_t claude_oauth_finish(const char *pasted, provider_usage_t *out)
+{
+    memset(out, 0, sizeof(*out)); out->enabled = true;
+    if (!s_verifier[0] || time(NULL) - s_pkce_at > 600) { snprintf(out->err, sizeof(out->err), "sign-in expired · start again"); return ESP_FAIL; }
+    /* accept "code#state", bare "code", or a full callback URL with ?code=…&state=… */
+    char code[160] = {0}, state[64] = {0};
+    const char *c = strstr(pasted, "code=");
+    if (c) {
+        c += 5; size_t i = 0; while (*c && *c != '&' && *c != '#' && i < sizeof(code) - 1) code[i++] = *c++;
+        const char *st = strstr(pasted, "state="); if (st) { st += 6; i = 0; while (*st && *st != '&' && *st != '#' && i < sizeof(state) - 1) state[i++] = *st++; }
+    } else {
+        size_t i = 0; while (*pasted == ' ') pasted++;
+        while (*pasted && *pasted != '#' && *pasted != ' ' && *pasted != '\n' && i < sizeof(code) - 1) code[i++] = *pasted++;
+        if (*pasted == '#') { pasted++; i = 0; while (*pasted && *pasted != ' ' && *pasted != '\n' && i < sizeof(state) - 1) state[i++] = *pasted++; }
+    }
+    if (!code[0]) { snprintf(out->err, sizeof(out->err), "no code found in what you pasted"); return ESP_FAIL; }
+    if (state[0] && strcmp(state, s_state) != 0) { snprintf(out->err, sizeof(out->err), "state mismatch · start the sign-in again"); return ESP_FAIL; }
+
+    char *form = malloc(640), *body = malloc(BODY_CAP);
+    if (!form || !body) { free(form); free(body); return ESP_ERR_NO_MEM; }
+    snprintf(form, 640, "{\"grant_type\":\"authorization_code\",\"code\":\"%s\",\"redirect_uri\":\"%s\",\"client_id\":\"%s\",\"code_verifier\":\"%s\",\"state\":\"%s\"}",
+             code, MANUAL_REDIRECT, CLIENT_ID, s_verifier, s_state);
+    const char *hdr[] = { "User-Agent", UA, "Accept", "application/json", NULL };
+    http_resp_t r = { .buf = body, .cap = BODY_CAP };
+    esp_err_t e = http_request(TOKEN_URL, HTTP_METHOD_POST, hdr, form, "application/json", &r, 20000, 1024);
+    free(form);
+    if (e != ESP_OK) { snprintf(out->err, sizeof(out->err), "network: %s", esp_err_to_name(e)); free(body); return e; }
+    if (r.status != 200) {
+        ESP_LOGW(TAG, "code exchange %d: %.200s", r.status, body);
+        snprintf(out->err, sizeof(out->err), "%d code rejected · %s", r.status, r.status == 400 ? "already used or expired — start again" : "try again");
+        free(body); return ESP_FAIL;
+    }
+    cJSON *root = cJSON_Parse(body); free(body);
+    if (!root) { snprintf(out->err, sizeof(out->err), "bad JSON from token endpoint"); return ESP_FAIL; }
+    cJSON *at = cJSON_GetObjectItem(root, "access_token"), *rt = cJSON_GetObjectItem(root, "refresh_token");
+    cJSON *ei = cJSON_GetObjectItem(root, "expires_in"), *sc = cJSON_GetObjectItem(root, "scope");
+    if (!cJSON_IsString(at)) { cJSON_Delete(root); snprintf(out->err, sizeof(out->err), "no access_token in response"); return ESP_FAIL; }
+    app_config_t *tmp = calloc(1, sizeof(*tmp));
+    if (!tmp) { cJSON_Delete(root); return ESP_ERR_NO_MEM; }
+    memcpy(tmp, config_get(), sizeof(*tmp));
+    strlcpy(tmp->claude_token, at->valuestring, sizeof(tmp->claude_token));
+    strlcpy(tmp->claude_refresh, cJSON_IsString(rt) ? rt->valuestring : "", sizeof(tmp->claude_refresh));
+    tmp->claude_access_exp = cJSON_IsNumber(ei) ? time(NULL) + (int64_t)ei->valuedouble : time(NULL) + 7 * 3600;
+    strlcpy(tmp->claude_scope, cJSON_IsString(sc) && sc->valuestring[0] ? sc->valuestring : DEVICE_SCOPES, sizeof(tmp->claude_scope));
+    cJSON_Delete(root);
+    e = get_usage(tmp->claude_token, out);
+    if (e == ESP_OK) {
+        app_config_t *live = config_get();
+        strlcpy(live->claude_token, tmp->claude_token, sizeof(live->claude_token));
+        strlcpy(live->claude_refresh, tmp->claude_refresh, sizeof(live->claude_refresh));
+        strlcpy(live->claude_scope, tmp->claude_scope, sizeof(live->claude_scope));
+        live->claude_access_exp = tmp->claude_access_exp;
+        s_verifier[0] = 0;
+    } else if (e == ESP_ERR_INVALID_STATE) snprintf(out->err, sizeof(out->err), "signed in, but usage endpoint rejected the token (scope?)");
+    free(tmp);
+    return e;
 }
 static esp_err_t refresh_tokens(app_config_t *cfg, char *err, size_t errlen)
 {
