@@ -1,0 +1,690 @@
+<title>Token Meter Screens</title>
+<style>
+  :root {
+    --bg: #F3F4F1;
+    --surface: #FFFFFF;
+    --ink: #171A1E;
+    --muted: #5F6873;
+    --rule: #DADDD6;
+    --accent: #B77A00;
+    --accent-ink: #7A5100;
+    --code-bg: #ECEEE9;
+    --bezel: #14171B;
+    --bezel-edge: #2A2F36;
+
+    /* LCD palette — physical panel, single theme by design */
+    --lcd-bg: #0A0C10;
+    --lcd-ink: #ECEFF3;
+    --lcd-muted: #7C8794;
+    --lcd-track: #1F2530;
+    --lcd-rule: #171C24;
+    --claude: #D97757;
+    --gpt: #19A37F;
+    --warn: #F0B429;
+    --crit: #F04E4E;
+    --offline: #4A525C;
+
+    --sans: "Fira Sans", "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "Fira Mono", "DejaVu Sans Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1114; --surface: #171A1F; --ink: #E7EAEE; --muted: #98A1AB;
+      --rule: #262B33; --accent: #E3A21A; --accent-ink: #F0BB4C; --code-bg: #1E232A;
+      --bezel: #050608; --bezel-edge: #22262C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1114; --surface: #171A1F; --ink: #E7EAEE; --muted: #98A1AB;
+    --rule: #262B33; --accent: #E3A21A; --accent-ink: #F0BB4C; --code-bg: #1E232A;
+    --bezel: #050608; --bezel-edge: #22262C;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  h1 { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 8px; text-wrap: balance; }
+  h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 64px 0 6px; text-wrap: balance; }
+  h3 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  p { max-width: 68ch; margin: 0 0 12px; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 62ch; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; max-width: 70ch; margin: 0 0 20px; }
+  code, kbd { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  a { color: var(--accent-ink); }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 40px 0; }
+
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; color: var(--muted); font-family: var(--mono); margin: 18px 0 0; }
+  .meta b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- screen cards ---------- */
+  .screens { display: flex; flex-direction: column; gap: 22px; margin-top: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: grid; grid-template-columns: 670px minmax(0, 1fr); gap: 12px 24px; align-items: start; }
+  .card header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .card .note { align-self: start; }
+  @media (max-width: 1000px) { .card { grid-template-columns: 1fr; } }
+  .card header .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .card .note { font-size: 13.5px; color: var(--muted); margin: 0; }
+  .card .note b { color: var(--ink); font-weight: 500; }
+
+  .stage { overflow-x: auto; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .bezel { background: var(--bezel); border: 1px solid var(--bezel-edge); border-radius: 12px; padding: 14px; display: inline-block; }
+  .zoom2 { width: 640px; height: 344px; position: relative; }
+  .zoom2 > .lcd { transform: scale(2); transform-origin: 0 0; }
+  .zoom1 { display: inline-flex; align-items: center; gap: 12px; }
+  .zoom1 .lbl { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* ---------- the LCD itself: exactly 320×172 CSS px ---------- */
+  .lcd {
+    width: 320px; height: 172px; background: var(--lcd-bg); color: var(--lcd-ink);
+    font-family: var(--sans); position: relative; overflow: hidden; border-radius: 3px;
+    display: flex; flex-direction: column; padding: 6px 6px 0; gap: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .lcd .prov { display: flex; flex-direction: column; }
+  .lcd .prov + .prov { margin-top: 6px; }
+  .lcd .ph { height: 16px; display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
+  .lcd .ph .name { font-size: 11px; font-weight: 600; letter-spacing: 0.10em; text-transform: uppercase; }
+  .lcd .ph .plan { font-size: 10px; color: var(--lcd-muted); font-family: var(--mono); }
+  .lcd .row { height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+  .lcd .win { width: 22px; font-family: var(--mono); font-size: 11px; color: var(--lcd-muted); }
+  .lcd .track { flex: 1; height: 8px; background: var(--lcd-track); border-radius: 4px; overflow: hidden; }
+  .lcd .fill { height: 100%; border-radius: 4px; }
+  .lcd .pct { width: 46px; text-align: right; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+  .lcd .pct small { font-size: 10px; font-weight: 500; color: var(--lcd-muted); margin-left: 1px; }
+  .lcd .reset { width: 66px; font-family: var(--mono); font-size: 11px; color: var(--lcd-muted); white-space: nowrap; }
+  .lcd .status {
+    margin-top: auto; height: 18px; border-top: 1px solid var(--lcd-rule);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 2px;
+    font-family: var(--mono); font-size: 10px; color: var(--lcd-muted);
+  }
+  .lcd .status .l, .lcd .status .r { display: flex; align-items: center; gap: 6px; }
+  .wifi { display: inline-flex; align-items: flex-end; gap: 1px; height: 9px; }
+  .wifi i { width: 2px; background: var(--lcd-muted); border-radius: 1px; display: block; }
+  .wifi i:nth-child(1){height:3px} .wifi i:nth-child(2){height:5px} .wifi i:nth-child(3){height:7px} .wifi i:nth-child(4){height:9px}
+  .wifi.s3 i:nth-child(4){opacity:.25} .wifi.s2 i:nth-child(3),.wifi.s2 i:nth-child(4){opacity:.25}
+  .wifi.on i { background: var(--lcd-ink); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+  /* semantic states */
+  .c-claude { color: var(--claude); } .b-claude { background: var(--claude); }
+  .c-gpt { color: var(--gpt); } .b-gpt { background: var(--gpt); }
+  .c-warn { color: var(--warn); } .b-warn { background: var(--warn); }
+  .c-crit { color: var(--crit); } .b-crit { background: var(--crit); }
+  .c-off { color: var(--offline); } .b-off { background: var(--offline); }
+  .lcd .row.err .track { background: repeating-linear-gradient(90deg, var(--lcd-track) 0 4px, transparent 4px 8px); }
+  .lcd .row.err .msg { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--crit); }
+
+  /* single-provider layout (only one source configured) */
+  .lcd.solo .ph { height: 20px; }
+  .lcd.solo .ph .name { font-size: 12px; }
+  .lcd.solo .row { height: 30px; gap: 10px; }
+  .lcd.solo .win { width: 34px; font-size: 11px; }
+  .lcd.solo .track { height: 10px; border-radius: 5px; }
+  .lcd.solo .fill { border-radius: 5px; }
+  .lcd.solo .pct { width: 56px; font-size: 24px; }
+  .lcd.solo .pct small { font-size: 11px; }
+  .lcd.solo .reset { width: 70px; }
+
+  /* offline overlay */
+  .lcd.offline .prov { filter: saturate(0.15); opacity: .55; }
+  .lcd .banner {
+    margin-top: auto; height: 22px; background: #2A2208; border-top: 1px solid #5B4A0E;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 6px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--warn); margin-left: -6px; margin-right: -6px; white-space: nowrap;
+  }
+  .lcd .banner b { font-weight: 600; }
+  .lcd .banner .blink { animation: blink 1.6s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .lcd .banner .blink { animation: none; } }
+
+  /* provisioning */
+  .lcd.prov-screen { flex-direction: row; gap: 12px; padding: 10px; align-items: center; }
+  .lcd.prov-screen canvas { width: 108px; height: 108px; image-rendering: pixelated; border-radius: 3px; background: #fff; flex: none; }
+  .lcd.prov-screen .txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .lcd.prov-screen .eb { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--warn); }
+  .lcd.prov-screen .t1 { font-size: 13px; font-weight: 600; }
+  .lcd.prov-screen .k { font-family: var(--mono); font-size: 10px; color: var(--lcd-muted); margin-top: 3px; }
+  .lcd.prov-screen .v { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+  .lcd.prov-screen .url { font-family: var(--mono); font-size: 11px; color: var(--lcd-ink); margin-top: 6px; }
+  .lcd.prov-screen .url span { color: var(--lcd-muted); }
+
+  /* boot */
+  .lcd.boot { align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 0; }
+  .lcd.boot .logo { font-size: 15px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; }
+  .lcd.boot .logo b { color: var(--claude); font-weight: 600; }
+  .lcd.boot .msg { font-family: var(--mono); font-size: 11px; color: var(--lcd-muted); }
+  .lcd.boot .ver { position: absolute; bottom: 6px; right: 8px; font-family: var(--mono); font-size: 9px; color: var(--offline); }
+  .lcd.boot .bar { width: 120px; height: 3px; background: var(--lcd-track); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .lcd.boot .bar i { display: block; height: 100%; width: 40%; background: var(--lcd-ink); border-radius: 2px; animation: slide 1.4s ease-in-out infinite alternate; }
+  @keyframes slide { to { transform: translateX(150%); } }
+  @media (prefers-reduced-motion: reduce) { .lcd.boot .bar i { animation: none; width: 60%; } }
+
+  /* ---------- live sample ---------- */
+  .live { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: start; margin-top: 20px; }
+  @media (max-width: 760px) { .live { grid-template-columns: 1fr; } }
+  .ctrls { display: grid; grid-template-columns: 1fr; gap: 12px; font-size: 14px; }
+  .ctrls label { display: grid; grid-template-columns: 110px 1fr 44px; gap: 10px; align-items: center; }
+  .ctrls label span:last-child { font-family: var(--mono); text-align: right; font-size: 13px; }
+  .ctrls input[type=range] { width: 100%; accent-color: var(--accent); }
+  .ctrls .th { display: flex; gap: 14px; margin-top: 6px; color: var(--muted); font-size: 13px; }
+  .ctrls .th input { width: 52px; font-family: var(--mono); font-size: 13px; padding: 2px 4px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+  .ledrow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .led { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 10px 2px currentColor; }
+
+  /* ---------- tokens ---------- */
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .tablewrap { overflow-x: auto; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td code { white-space: nowrap; }
+  .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 8px; border: 1px solid rgba(0,0,0,.15); }
+
+  /* ---------- web ui phones ---------- */
+  .phones { display: grid; grid-template-columns: repeat(auto-fill, 360px); gap: 22px 24px; padding: 8px 0 20px; margin-top: 16px; }
+  .phone { width: 360px; }
+  .phone .cap { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+  .phone .cap b { color: var(--ink); font-weight: 500; }
+  .shell {
+    background: var(--bezel); border-radius: 26px; padding: 12px; border: 1px solid var(--bezel-edge);
+  }
+  .web {
+    background: #F7F8F6; color: #16191D; border-radius: 16px; overflow: hidden; height: 640px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.45;
+    display: flex; flex-direction: column;
+  }
+  .web .top { background: #14171B; color: #ECEFF3; padding: 14px 16px 12px; display: flex; align-items: center; justify-content: space-between; }
+  .web .top .brand { font-weight: 600; letter-spacing: .02em; font-size: 15px; }
+  .web .top .brand small { display: block; font-weight: 400; font-size: 11px; color: #98A1AB; font-family: var(--mono); }
+  .pill { font-family: var(--mono); font-size: 10.5px; padding: 3px 8px; border-radius: 99px; display: inline-flex; align-items: center; gap: 6px; }
+  .pill i { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.ap { background: #3A2E0A; color: #F0B429; } .pill.ap i { background: #F0B429; }
+  .pill.ok { background: #0F3A2C; color: #3ED3A2; } .pill.ok i { background: #3ED3A2; }
+  .web .body { padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; flex: 1; }
+  .web h4 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+  .web .help { margin: 0; color: #5F6873; font-size: 13px; }
+  .web .help code { background: #E7E9E3; }
+  .steps { display: flex; gap: 6px; }
+  .steps i { flex: 1; height: 3px; border-radius: 2px; background: #DADDD6; }
+  .steps i.on { background: #16191D; }
+  .list { border: 1px solid #DADDD6; border-radius: 10px; background: #fff; overflow: hidden; }
+  .list .it { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-top: 1px solid #ECEEE9; }
+  .list .it:first-child { border-top: 0; }
+  .list .it.sel { background: #FFF6DE; }
+  .list .it .nm { font-weight: 500; }
+  .list .it .rs { font-family: var(--mono); font-size: 11px; color: #5F6873; display: flex; gap: 8px; align-items: center; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12.5px; font-weight: 500; color: #3B424B; }
+  .field .in { border: 1px solid #C9CDC5; border-radius: 8px; background: #fff; padding: 10px 12px; font-family: var(--mono); font-size: 13px; color: #16191D; }
+  .field .in.ph { color: #8A929B; }
+  .field .in.ta { min-height: 92px; white-space: pre-wrap; word-break: break-all; font-size: 11.5px; line-height: 1.4; }
+  .btnrow { display: flex; gap: 10px; margin-top: auto; }
+  .btn { padding: 12px 16px; border-radius: 10px; font-weight: 600; font-size: 14px; text-align: center; flex: 1; }
+  .btn.p { background: #16191D; color: #fff; }
+  .btn.s { background: #fff; color: #16191D; border: 1px solid #C9CDC5; }
+  .btn.g { color: #5F6873; flex: 0 0 auto; }
+  .ok-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #167A5C; }
+  .ok-line i { width: 16px; height: 16px; border-radius: 50%; background: #19A37F; display: inline-block; position: relative; }
+  .ok-line i::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  /* web dashboard bits */
+  .wcard { background: #fff; border: 1px solid #DADDD6; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .wcard .hd { display: flex; justify-content: space-between; align-items: baseline; }
+  .wcard .hd b { font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+  .wcard .hd span { font-family: var(--mono); font-size: 11px; color: #5F6873; }
+  .wrow { display: grid; grid-template-columns: 26px 1fr 42px 74px; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+  .wrow .w { font-family: var(--mono); font-size: 11px; color: #5F6873; }
+  .wrow .t { height: 8px; background: #E7E9E3; border-radius: 4px; overflow: hidden; }
+  .wrow .t i { display: block; height: 100%; border-radius: 4px; }
+  .wrow .p { text-align: right; font-weight: 600; font-size: 15px; }
+  .wrow .r { font-family: var(--mono); font-size: 11px; color: #5F6873; }
+  .tabs { display: flex; gap: 4px; background: #E7E9E3; padding: 3px; border-radius: 10px; }
+  .tabs span { flex: 1; text-align: center; padding: 6px; font-size: 12.5px; border-radius: 8px; color: #5F6873; }
+  .tabs span.on { background: #fff; color: #16191D; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; font-size: 13px; }
+  .kv span:nth-child(2n) { font-family: var(--mono); font-size: 12px; text-align: right; color: #3B424B; }
+  .set { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-top: 1px solid #ECEEE9; font-size: 13.5px; }
+  .set:first-child { border-top: 0; }
+  .set .d { color: #5F6873; font-size: 12px; }
+  .set .val { font-family: var(--mono); font-size: 12px; color: #16191D; background: #E7E9E3; padding: 3px 8px; border-radius: 6px; }
+  .tog { width: 36px; height: 20px; border-radius: 10px; background: #16191D; position: relative; }
+  .tog::after { content: ""; position: absolute; right: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+  .tog.off { background: #C9CDC5; } .tog.off::after { right: auto; left: 2px; }
+  .danger { color: #B42318; font-weight: 500; }
+
+  pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; overflow-x: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 22px; font-size: 13px; color: var(--muted); margin-top: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+</style>
+
+<main>
+  <p class="eyebrow">Design samples · Phase 0</p>
+  <h1>Token Meter Screens</h1>
+  <p class="lede">Every state of the 1.47″ LCD and the phone-sized web UI for the ESP32‑C6 token burn meter, drawn at true pixel dimensions so the LVGL build can copy them 1:1.</p>
+  <div class="meta">
+    <span>panel <b>320 × 172</b> landscape</span>
+    <span>LVGL fonts <b>Montserrat 10 / 11 / 18</b></span>
+    <span>poll <b>Claude 180 s · ChatGPT 120 s</b></span>
+    <span>thresholds <b>warn ≥ 70 % · critical ≥ 90 %</b></span>
+  </div>
+
+  <h2>1 · Dashboard, the resting state</h2>
+  <p class="sub">Two providers, two windows each. The bar reads first, the number confirms it, the countdown answers “when do I get it back”. Provider hue is the fill until a threshold flips it to warning amber or critical red — so a healthy screen is two colours and a stressed one shouts.</p>
+
+  <div class="screens">
+    <div class="card">
+      <header><h3>1a · Normal</h3><span class="n">ONLINE</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd" id="s-normal">
+            <div class="prov">
+              <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-claude" style="width:38%"></div></div><span class="pct">38<small>%</small></span><span class="reset">↻ 2h 41m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-claude" style="width:31%"></div></div><span class="pct">31<small>%</small></span><span class="reset">↻ 2d 4h</span></div>
+            </div>
+            <div class="prov">
+              <div class="ph"><span class="name c-gpt">ChatGPT</span><span class="plan">PLUS · CODEX</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-gpt" style="width:42%"></div></div><span class="pct">42<small>%</small></span><span class="reset">↻ 3h 04m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-gpt" style="width:18%"></div></div><span class="pct">18<small>%</small></span><span class="reset">↻ 5d 1h</span></div>
+            </div>
+            <div class="status"><span class="l"><span class="wifi on s3"><i></i><i></i><i></i><i></i></span>HomeWiFi</span><span class="r">↑ 1m ago<span>14:32</span></span></div>
+          </div>
+        </div></div>
+        <div class="zoom1"><div class="lcd">
+          <div class="prov">
+            <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+            <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-claude" style="width:38%"></div></div><span class="pct">38<small>%</small></span><span class="reset">↻ 2h 41m</span></div>
+            <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-claude" style="width:31%"></div></div><span class="pct">31<small>%</small></span><span class="reset">↻ 2d 4h</span></div>
+          </div>
+          <div class="prov">
+            <div class="ph"><span class="name c-gpt">ChatGPT</span><span class="plan">PLUS · CODEX</span></div>
+            <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-gpt" style="width:42%"></div></div><span class="pct">42<small>%</small></span><span class="reset">↻ 3h 04m</span></div>
+            <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-gpt" style="width:18%"></div></div><span class="pct">18<small>%</small></span><span class="reset">↻ 5d 1h</span></div>
+          </div>
+          <div class="status"><span class="l"><span class="wifi on s3"><i></i><i></i><i></i><i></i></span>HomeWiFi</span><span class="r">↑ 1m ago<span>14:32</span></span></div>
+        </div><span class="lbl">1× (320×172 px)</span></div>
+      </div>
+      <p class="note">Status strip: SSID + signal, age of last successful fetch, clock. The clock doubles as proof NTP synced (TLS needs it).</p>
+    </div>
+
+    <div class="card">
+      <header><h3>1b · Warning + critical</h3><span class="n">ONLINE · LED red</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd">
+            <div class="prov">
+              <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-crit" style="width:92%"></div></div><span class="pct c-crit">92<small>%</small></span><span class="reset">↻ 0h 23m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-warn" style="width:74%"></div></div><span class="pct c-warn">74<small>%</small></span><span class="reset">↻ 1d 9h</span></div>
+            </div>
+            <div class="prov">
+              <div class="ph"><span class="name c-gpt">ChatGPT</span><span class="plan">PLUS · CODEX</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-gpt" style="width:12%"></div></div><span class="pct">12<small>%</small></span><span class="reset">↻ 4h 50m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-gpt" style="width:55%"></div></div><span class="pct">55<small>%</small></span><span class="reset">↻ 3d 0h</span></div>
+            </div>
+            <div class="status"><span class="l"><span class="wifi on s2"><i></i><i></i><i></i><i></i></span>HomeWiFi</span><span class="r">↑ 2m ago<span>14:33</span></span></div>
+          </div>
+        </div></div>
+      </div>
+      <p class="note">Only the bar and its number change hue — labels and countdowns stay neutral so the eye lands on the problem. The onboard WS2812 mirrors the <b>worst</b> gauge (green · amber · red), visible across the room even when the LCD is dimmed.</p>
+    </div>
+
+    <div class="card">
+      <header><h3>1c · Single provider configured</h3><span class="n">ONLINE · ChatGPT not set up</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd solo">
+            <div class="prov">
+              <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-claude" style="width:38%"></div></div><span class="pct">38<small>%</small></span><span class="reset">↻ 2h 41m</span></div>
+              <div class="row"><span class="win">week</span><div class="track"><div class="fill b-claude" style="width:31%"></div></div><span class="pct">31<small>%</small></span><span class="reset">↻ 2d 4h</span></div>
+              <div class="row"><span class="win">opus</span><div class="track"><div class="fill b-claude" style="width:22%"></div></div><span class="pct">22<small>%</small></span><span class="reset">↻ 2d 4h</span></div>
+              <div class="row"><span class="win">sonnet</span><div class="track"><div class="fill b-claude" style="width:9%"></div></div><span class="pct">9<small>%</small></span><span class="reset">↻ 1d 12h</span></div>
+            </div>
+            <div class="status"><span class="l"><span class="wifi on s3"><i></i><i></i><i></i><i></i></span>HomeWiFi</span><span class="r">↑ 1m ago<span>14:32</span></span></div>
+          </div>
+        </div></div>
+      </div>
+      <p class="note">An unconfigured provider is <b>never drawn</b> — no greyed block, no “not set up” placeholder. The remaining provider takes the whole panel: taller rows, 24 px numbers, and its per-model weekly limits (Opus / Sonnet) which the two-provider layout has no room for. The web UI dashboard hides the same card and the LED only follows configured gauges. Removing a token in Settings, or skipping it in the wizard, is what switches layouts — no separate “show/hide” toggle to keep in sync.</p>
+    </div>
+  </div>
+
+  <h2>2 · Provisioning &amp; connectivity</h2>
+  <p class="sub">First boot, or any time WiFi is gone. The device never shows a blank screen: it tells you what it is doing and how to reach it.</p>
+
+  <div class="screens">
+    <div class="card">
+      <header><h3>2a · Setup mode (first boot)</h3><span class="n">AP · 192.168.4.1</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd prov-screen">
+            <canvas class="qr" width="27" height="27" data-seed="7"></canvas>
+            <div class="txt">
+              <span class="eb">SETUP MODE</span>
+              <span class="t1">Join this hotspot</span>
+              <span class="k">network</span><span class="v">TokenMeter-3F2A</span>
+              <span class="k">password</span><span class="v">kite-8841</span>
+              <span class="url"><span>then open</span> 192.168.4.1</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <p class="note">QR encodes <code>WIFI:T:WPA;S:TokenMeter-3F2A;P:kite-8841;;</code> — phones join with one tap; the captive portal opens the setup wizard automatically. SSID suffix = last two MAC bytes; the password is generated once and persisted (shown as illustrative pattern here, real QR from LVGL’s <code>lv_qrcode</code>).</p>
+    </div>
+
+    <div class="card">
+      <header><h3>2b · Booting / connecting</h3><span class="n">STA · connecting</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd boot">
+            <div class="logo">Token <b>Meter</b></div>
+            <div class="msg">connecting to HomeWiFi…</div>
+            <div class="bar"><i></i></div>
+            <div class="ver">v0.1.0 · c6</div>
+          </div>
+        </div></div>
+      </div>
+      <p class="note">Shown for the STA attempt (≤ 30 s × 3). If it fails, the device drops into 2c without a reboot.</p>
+    </div>
+
+    <div class="card">
+      <header><h3>2c · Offline fallback</h3><span class="n">AP+STA · retrying</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd offline">
+            <div class="prov">
+              <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-claude" style="width:38%"></div></div><span class="pct">38<small>%</small></span><span class="reset">↻ 2h 41m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-claude" style="width:31%"></div></div><span class="pct">31<small>%</small></span><span class="reset">↻ 2d 4h</span></div>
+            </div>
+            <div class="prov">
+              <div class="ph"><span class="name c-gpt">ChatGPT</span><span class="plan">PLUS · CODEX</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-gpt" style="width:42%"></div></div><span class="pct">42<small>%</small></span><span class="reset">↻ 3h 04m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-gpt" style="width:18%"></div></div><span class="pct">18<small>%</small></span><span class="reset">↻ 5d 1h</span></div>
+            </div>
+            <div class="banner"><span><b class="blink">OFFLINE</b> · retry 38s · last 14:32</span><span>AP TokenMeter-3F2A</span></div>
+          </div>
+        </div></div>
+      </div>
+      <p class="note">Last-known data stays, desaturated, so you can still read it. The banner replaces the status strip and names the hotspot; joining it opens the same web UI so you can fix the WiFi password without a reset. Background STA retries every 60 s; on success the banner slides away.</p>
+    </div>
+
+    <div class="card">
+      <header><h3>2d · Provider error</h3><span class="n">ONLINE · one source down</span></header>
+      <div class="stage">
+        <div class="bezel"><div class="zoom2">
+          <div class="lcd">
+            <div class="prov">
+              <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+              <div class="row"><span class="win">5h</span><div class="track"><div class="fill b-claude" style="width:38%"></div></div><span class="pct">38<small>%</small></span><span class="reset">↻ 2h 41m</span></div>
+              <div class="row"><span class="win">wk</span><div class="track"><div class="fill b-claude" style="width:31%"></div></div><span class="pct">31<small>%</small></span><span class="reset">↻ 2d 4h</span></div>
+            </div>
+            <div class="prov">
+              <div class="ph"><span class="name c-gpt">ChatGPT</span><span class="plan">PLUS · CODEX</span></div>
+              <div class="row err"><span class="win">5h</span><span class="msg">403 blocked (Cloudflare) · retry in 4m</span></div>
+              <div class="row err"><span class="win">wk</span><span class="msg">401 token expired · re-add in web UI</span></div>
+            </div>
+            <div class="status"><span class="l"><span class="wifi on s3"><i></i><i></i><i></i><i></i></span>HomeWiFi</span><span class="r"><span class="dot b-crit"></span>1 error<span>14:35</span></span></div>
+          </div>
+        </div></div>
+      </div>
+      <p class="note">Errors are per-row and say what to do. Two examples on one screen: the transient (403, auto-retry with backoff) and the actionable (401, needs your input). The other provider is unaffected. Full message in the web UI’s Status page.</p>
+    </div>
+  </div>
+
+  <h2>3 · Live sample</h2>
+  <p class="sub">Drag the sliders to test how the thresholds read on the panel. Same DOM as the mockups above; the LED preview follows the worst gauge.</p>
+  <div class="live">
+    <div class="bezel"><div class="zoom2">
+      <div class="lcd" id="live">
+        <div class="prov">
+          <div class="ph"><span class="name c-claude">Claude</span><span class="plan">MAX 5×</span></div>
+          <div class="row" data-k="c5"><span class="win">5h</span><div class="track"><div class="fill b-claude"></div></div><span class="pct"></span><span class="reset">↻ 2h 41m</span></div>
+          <div class="row" data-k="cw"><span class="win">wk</span><div class="track"><div class="fill b-claude"></div></div><span class="pct"></span><span class="reset">↻ 2d 4h</span></div>
+        </div>
+        <div class="prov">
+          <div class="ph"><span class="name c-gpt">ChatGPT</span><span class="plan">PLUS · CODEX</span></div>
+          <div class="row" data-k="g5"><span class="win">5h</span><div class="track"><div class="fill b-gpt"></div></div><span class="pct"></span><span class="reset">↻ 3h 04m</span></div>
+          <div class="row" data-k="gw"><span class="win">wk</span><div class="track"><div class="fill b-gpt"></div></div><span class="pct"></span><span class="reset">↻ 5d 1h</span></div>
+        </div>
+        <div class="status"><span class="l"><span class="wifi on s3"><i></i><i></i><i></i><i></i></span>HomeWiFi</span><span class="r">↑ 1m ago<span>14:32</span></span></div>
+      </div>
+    </div></div>
+    <div class="ctrls">
+      <label>Claude 5h <input type="range" min="0" max="100" value="38" data-k="c5"><span>38%</span></label>
+      <label>Claude weekly <input type="range" min="0" max="100" value="31" data-k="cw"><span>31%</span></label>
+      <label>ChatGPT 5h <input type="range" min="0" max="100" value="42" data-k="g5"><span>42%</span></label>
+      <label>ChatGPT weekly <input type="range" min="0" max="100" value="18" data-k="gw"><span>18%</span></label>
+      <div class="th">warn ≥ <input type="number" id="thw" value="70" min="0" max="100"> % &nbsp; critical ≥ <input type="number" id="thc" value="90" min="0" max="100"> %</div>
+      <div class="ledrow"><span class="led" id="led"></span><span id="ledtxt">LED: green — all gauges under warn</span></div>
+    </div>
+  </div>
+
+  <h2>4 · Web UI</h2>
+  <p class="sub">Served by the ESP32 itself (one gzipped HTML file, no frameworks, &lt;30 KB) so it stays fast over the hotspot. Phone-first because that is what you hold when you join a captive portal; the same page works on desktop at <code>http://tokenmeter.local</code>.</p>
+
+  <div class="phones">
+    <div class="phone">
+      <p class="cap"><b>Wizard 1/3</b> · WiFi · captive portal</p>
+      <div class="shell"><div class="web">
+        <div class="top"><div class="brand">Token Meter<small>TokenMeter-3F2A · setup</small></div><span class="pill ap"><i></i>HOTSPOT</span></div>
+        <div class="body">
+          <div class="steps"><i class="on"></i><i></i><i></i></div>
+          <h4>Connect to your WiFi</h4>
+          <p class="help">Pick your home network. 2.4 GHz only — the C6 does not do 5 GHz.</p>
+          <div class="list">
+            <div class="it sel"><span class="nm">HomeWiFi</span><span class="rs">🔒 −52 dBm</span></div>
+            <div class="it"><span class="nm">HomeWiFi-Guest</span><span class="rs">🔒 −55 dBm</span></div>
+            <div class="it"><span class="nm">NETGEAR-2G</span><span class="rs">🔒 −78 dBm</span></div>
+            <div class="it"><span class="nm">xfinitywifi</span><span class="rs">open −81 dBm</span></div>
+            <div class="it"><span class="nm" style="color:#5F6873">Other network…</span><span class="rs"></span></div>
+          </div>
+          <div class="field"><label>Password for HomeWiFi</label><div class="in">••••••••••••</div></div>
+          <div class="btnrow"><span class="btn g">Rescan</span><span class="btn p">Test &amp; continue</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><b>Wizard 2/3</b> · Claude token</p>
+      <div class="shell"><div class="web">
+        <div class="top"><div class="brand">Token Meter<small>TokenMeter-3F2A · setup</small></div><span class="pill ap"><i></i>HOTSPOT</span></div>
+        <div class="body">
+          <div class="steps"><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="ok-line"><i></i>Connected to HomeWiFi · 192.168.1.42</div>
+          <h4>Claude subscription</h4>
+          <p class="help">On your computer run <code>claude setup-token</code> and paste the <code>sk-ant-oat01-…</code> token it prints. It lasts about a year and only reads usage.</p>
+          <div class="field"><label>Long-lived OAuth token</label><div class="in ta" style="min-height:64px">sk-ant-oat01-Xk9…rQ2 <span style="color:#8A929B">(paste)</span></div></div>
+          <p class="help">Uses the same endpoint as Claude Code’s <code>/usage</code>. Unofficial — if Anthropic changes it, the row shows an error, nothing else breaks.</p>
+          <div class="btnrow"><span class="btn g">Skip</span><span class="btn s">Back</span><span class="btn p">Verify &amp; continue</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><b>Wizard 3/3</b> · ChatGPT / Codex</p>
+      <div class="shell"><div class="web">
+        <div class="top"><div class="brand">Token Meter<small>TokenMeter-3F2A · setup</small></div><span class="pill ap"><i></i>HOTSPOT</span></div>
+        <div class="body">
+          <div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+          <div class="ok-line"><i></i>Claude verified · Max 5× · 38 % of 5 h used</div>
+          <h4>ChatGPT (Codex) subscription</h4>
+          <p class="help">Paste the contents of <code>~/.codex/auth.json</code>. The device keeps the tokens in flash and refreshes them itself.</p>
+          <div class="field"><label>auth.json</label><div class="in ta">{"tokens":{"access_token":"eyJhbGciOi…","refresh_token":"rt_9f2…","account_id":"acct_3b1…"},"last_refresh":"2026-08-14T…"}</div></div>
+          <p class="help" style="color:#8A5A00">Heads-up: refresh tokens rotate, so your desktop Codex CLI may occasionally ask you to log in again.</p>
+          <div class="btnrow"><span class="btn g">Skip</span><span class="btn s">Back</span><span class="btn p">Verify &amp; finish</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><b>Dashboard</b> · http://tokenmeter.local · cards appear only for configured providers</p>
+      <div class="shell"><div class="web">
+        <div class="top"><div class="brand">Token Meter<small>192.168.1.42 · HomeWiFi −52 dBm</small></div><span class="pill ok"><i></i>ONLINE</span></div>
+        <div class="body">
+          <div class="tabs"><span class="on">Usage</span><span>Settings</span><span>Status</span></div>
+          <div class="wcard">
+            <div class="hd"><b style="color:#B85C3A">Claude</b><span>Max 5× · fetched 1 m ago</span></div>
+            <div class="wrow"><span class="w">5h</span><div class="t"><i style="width:38%;background:#D97757"></i></div><span class="p">38%</span><span class="r">↻ 2h 41m</span></div>
+            <div class="wrow"><span class="w">wk</span><div class="t"><i style="width:31%;background:#D97757"></i></div><span class="p">31%</span><span class="r">↻ 2d 4h</span></div>
+            <div class="wrow"><span class="w">opus</span><div class="t"><i style="width:22%;background:#D97757"></i></div><span class="p">22%</span><span class="r">↻ 2d 4h</span></div>
+          </div>
+          <div class="wcard">
+            <div class="hd"><b style="color:#12876A">ChatGPT</b><span>Plus · fetched 40 s ago</span></div>
+            <div class="wrow"><span class="w">5h</span><div class="t"><i style="width:42%;background:#19A37F"></i></div><span class="p">42%</span><span class="r">↻ 3h 04m</span></div>
+            <div class="wrow"><span class="w">wk</span><div class="t"><i style="width:18%;background:#19A37F"></i></div><span class="p">18%</span><span class="r">↻ 5d 1h</span></div>
+          </div>
+          <div class="wcard" style="gap:6px">
+            <div class="hd"><b>Device</b><span>uptime 3d 2h</span></div>
+            <div class="kv"><span>Free heap</span><span>212 KB</span><span>Next poll</span><span>Claude 1:48 · GPT 0:39</span><span>SD log</span><span>usage.csv · 1.2 MB</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><b>Settings</b></p>
+      <div class="shell"><div class="web">
+        <div class="top"><div class="brand">Token Meter<small>192.168.1.42 · HomeWiFi −52 dBm</small></div><span class="pill ok"><i></i>ONLINE</span></div>
+        <div class="body" style="gap:8px">
+          <div class="tabs"><span>Usage</span><span class="on">Settings</span><span>Status</span></div>
+          <div class="wcard" style="gap:0">
+            <div class="set"><div>WiFi network<div class="d">HomeWiFi · change or forget</div></div><span class="val">edit</span></div>
+            <div class="set"><div>Claude token<div class="d">sk-ant-oat01-…rQ2 · verified</div></div><span class="val">replace</span></div>
+            <div class="set"><div>ChatGPT tokens<div class="d">acct_3b1… · refreshed 2 h ago · <u>remove</u> hides it from the LCD</div></div><span class="val">replace</span></div>
+          </div>
+          <div class="wcard" style="gap:0">
+            <div class="set"><div>Poll interval<div class="d">Claude / ChatGPT</div></div><span class="val">180 s / 120 s</span></div>
+            <div class="set"><div>Warn / critical at</div><span class="val">70 % / 90 %</span></div>
+            <div class="set"><div>Brightness<div class="d">max 50 % (panel limit)</div></div><span class="val">40 %</span></div>
+            <div class="set"><div>Night dim<div class="d">23:00 – 07:00 → 10 %</div></div><span class="tog"></span></div>
+            <div class="set"><div>Status LED mirrors worst gauge</div><span class="tog"></span></div>
+            <div class="set"><div>Log to SD card<div class="d">/usage.csv every poll</div></div><span class="tog off"></span></div>
+            <div class="set"><div>Timezone</div><span class="val">America/Denver</span></div>
+            <div class="set"><div>Rotation</div><span class="val">USB left</span></div>
+          </div>
+          <div class="wcard" style="gap:0">
+            <div class="set"><div class="danger">Factory reset<div class="d">wipes WiFi + tokens, back to setup mode</div></div><span class="val">hold 3 s</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <h2>5 · Connectivity state machine</h2>
+  <p class="sub">What the device does when the network is not there. The web UI is reachable in every state except <em>booting</em>.</p>
+  <pre class="mermaid">
+stateDiagram-v2
+    [*] --> Boot
+    Boot --> Provision : no WiFi creds in NVS
+    Boot --> Connecting : creds found
+    Provision --> Connecting : wizard saves creds
+    Connecting --> Online : got IP + NTP
+    Connecting --> Fallback : 3 × 30 s failed
+    Online --> Fallback : link lost > 20 s
+    Fallback --> Online : background STA retry (60 s) succeeds
+    Fallback --> Connecting : new creds saved via portal
+    Online --> Provision : factory reset
+    state Provision {
+        direction LR
+        AP_only : softAP TokenMeter-XXXX + captive DNS
+        LCD_2a : LCD shows QR + password
+        AP_only --> LCD_2a
+    }
+    state Fallback {
+        direction LR
+        AP_STA : softAP + STA retry
+        LCD_2c : LCD greyed + OFFLINE banner
+        AP_STA --> LCD_2c
+    }
+    state Online {
+        direction LR
+        Poll : Claude 180 s / GPT 120 s, staggered
+        LCD_1 : LCD dashboard
+        Poll --> LCD_1
+    }
+  </pre>
+
+  <h2>6 · Tokens for the LVGL build</h2>
+  <p class="sub">Everything the firmware theme file needs. Colours are RGB565-safe (checked on the ST7789’s 16-bit path); fonts are LVGL’s bundled Montserrat sizes so no font conversion is needed for MVP.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Token</th><th>Value</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td><code>COL_BG</code></td><td><span class="sw" style="background:#0A0C10"></span><code>0x0A0C10</code></td><td>panel background</td></tr>
+      <tr><td><code>COL_INK</code></td><td><span class="sw" style="background:#ECEFF3"></span><code>0xECEFF3</code></td><td>percent numbers, titles</td></tr>
+      <tr><td><code>COL_MUTED</code></td><td><span class="sw" style="background:#7C8794"></span><code>0x7C8794</code></td><td>window labels, countdowns, status strip</td></tr>
+      <tr><td><code>COL_TRACK</code></td><td><span class="sw" style="background:#1F2530"></span><code>0x1F2530</code></td><td>empty bar track</td></tr>
+      <tr><td><code>COL_CLAUDE</code></td><td><span class="sw" style="background:#D97757"></span><code>0xD97757</code></td><td>Claude header + healthy fill</td></tr>
+      <tr><td><code>COL_GPT</code></td><td><span class="sw" style="background:#19A37F"></span><code>0x19A37F</code></td><td>ChatGPT header + healthy fill</td></tr>
+      <tr><td><code>COL_WARN</code></td><td><span class="sw" style="background:#F0B429"></span><code>0xF0B429</code></td><td>fill + number at ≥ warn; offline banner text</td></tr>
+      <tr><td><code>COL_CRIT</code></td><td><span class="sw" style="background:#F04E4E"></span><code>0xF04E4E</code></td><td>fill + number at ≥ critical; error rows</td></tr>
+      <tr><td><code>COL_OFFLINE</code></td><td><span class="sw" style="background:#4A525C"></span><code>0x4A525C</code></td><td>desaturated fills in fallback (or apply 55 % opacity)</td></tr>
+      <tr><td><code>FONT_LABEL</code></td><td><code>lv_font_montserrat_10</code></td><td>window labels “5h/wk”, plan tag, status strip</td></tr>
+      <tr><td><code>FONT_HEAD</code></td><td><code>lv_font_montserrat_12</code> (letter-space +1)</td><td>CLAUDE / CHATGPT headers, prov screen title</td></tr>
+      <tr><td><code>FONT_PCT</code></td><td><code>lv_font_montserrat_18</code></td><td>percent numbers (18 px keeps 4 rows in 172 px)</td></tr>
+      <tr><td><code>FONT_MONO</code></td><td><code>lv_font_unscii_8</code> or Montserrat 10</td><td>SSID/password on the setup screen — mono avoids l/1/I confusion</td></tr>
+      <tr><td>Geometry</td><td><code>pad 6 · header 16 · row 24 · gap 6 · status 18</code></td><td>bar 8 px tall, radius 4; pct column 46 px; countdown 66 px</td></tr>
+      <tr><td>Backlight</td><td><code>LEDC 5 kHz, duty ≤ 50 %</code></td><td>Waveshare thermal limit; night dim to 10 %</td></tr>
+      <tr><td>LED</td><td><code>GPIO8 WS2812 · 20 % brightness</code></td><td>green / amber / red = worst gauge; blue pulse in setup; amber blink in fallback</td></tr>
+    </tbody>
+  </table></div>
+
+  <hr>
+  <p class="sub" style="margin:0">Next: approve or mark up these screens, then Phase 1 builds the ESP-IDF skeleton (<code>firmware/</code>) with the LVGL dashboard reproducing 1a–2d and the web UI reproducing the five phone pages above.</p>
+</main>
+
+<script>
+(function () {
+  // --- decorative QR-like pattern (real QR generated on-device by lv_qrcode) ---
+  document.querySelectorAll('canvas.qr').forEach(function (cv) {
+    var n = cv.width, ctx = cv.getContext('2d'), seed = +cv.dataset.seed || 1;
+    function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, n, n);
+    ctx.fillStyle = '#000';
+    for (var y = 2; y < n - 2; y++) for (var x = 2; x < n - 2; x++) if (rnd() < 0.45) ctx.fillRect(x, y, 1, 1);
+    function finder(ox, oy) {
+      ctx.fillStyle = '#fff'; ctx.fillRect(ox - 1, oy - 1, 9, 9);
+      ctx.fillStyle = '#000'; ctx.fillRect(ox, oy, 7, 7);
+      ctx.fillStyle = '#fff'; ctx.fillRect(ox + 1, oy + 1, 5, 5);
+      ctx.fillStyle = '#000'; ctx.fillRect(ox + 2, oy + 2, 3, 3);
+    }
+    finder(2, 2); finder(n - 9, 2); finder(2, n - 9);
+  });
+
+  // --- live sample ---
+  var live = document.getElementById('live'); if (!live) return;
+  var vals = { c5: 38, cw: 31, g5: 42, gw: 18 };
+  var thw = document.getElementById('thw'), thc = document.getElementById('thc');
+  var led = document.getElementById('led'), ledtxt = document.getElementById('ledtxt');
+  var CSS = getComputedStyle(document.documentElement);
+  function col(name) { return CSS.getPropertyValue(name).trim(); }
+  function render() {
+    var w = +thw.value, c = +thc.value, worst = 0;
+    Object.keys(vals).forEach(function (k) {
+      var v = vals[k], row = live.querySelector('.row[data-k="' + k + '"]');
+      var fill = row.querySelector('.fill'), pct = row.querySelector('.pct');
+      var base = k[0] === 'c' ? 'claude' : 'gpt';
+      var state = v >= c ? 'crit' : v >= w ? 'warn' : base;
+      fill.className = 'fill b-' + state; fill.style.width = v + '%';
+      pct.className = 'pct' + (state === 'crit' || state === 'warn' ? ' c-' + state : '');
+      pct.innerHTML = v + '<small>%</small>';
+      worst = Math.max(worst, v >= c ? 2 : v >= w ? 1 : 0);
+    });
+    var lc = worst === 2 ? col('--crit') : worst === 1 ? col('--warn') : col('--gpt');
+    led.style.color = lc; led.style.background = lc;
+    ledtxt.textContent = 'LED: ' + (worst === 2 ? 'red — a gauge is critical' : worst === 1 ? 'amber — a gauge is past warn' : 'green — all gauges under warn');
+  }
+  document.querySelectorAll('.ctrls input[type=range]').forEach(function (r) {
+    r.addEventListener('input', function () {
+      vals[r.dataset.k] = +r.value; r.parentElement.lastElementChild.textContent = r.value + '%'; render();
+    });
+  });
+  thw.addEventListener('input', render); thc.addEventListener('input', render);
+  render();
+})();
+</script>
